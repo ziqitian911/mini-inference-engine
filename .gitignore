@@ -1,0 +1,9 @@
+# claude
+CLAUDE.md
+
+# build
+build/
+output/
+
+# MacOS
+.DS_Store 
