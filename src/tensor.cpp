@@ -68,7 +68,9 @@ Tensor::Tensor(Tensor &&other) noexcept
 }
 
 /**
- * @brief
+ * @brief Build a tensor of the given shape and fill it with the given values.
+ * @param shape dimensions, e.g. {2, 3} for a 2x3 tensor.
+ * @param values initial values in row-major order (size must equal the element count).
  */
 Tensor::Tensor(const std::vector<int> &shape, const std::vector<float> &values) : Tensor(shape)
 {
@@ -144,6 +146,26 @@ Tensor &Tensor::operator=(Tensor &&other) noexcept
 }
 
 /**
+ * @brief Access the i-th element by flat index (row-major).
+ * @param i flat index, 0 .. size()-1.
+ * @return reference to the element, so it can be read or written.
+ */
+float &Tensor::operator[](int i)
+{
+    return this->data[i];
+}
+
+/**
+ * @brief Read the i-th element by flat index (row-major).
+ * @param i flat index, 0 .. size()-1.
+ * @return a copy of the element (read only).
+ */
+float Tensor::operator[](int i) const
+{
+    return this->data[i];
+}
+
+/**
  * @brief Number of elements in the tensor
  *
  * @return product of all dimensions
@@ -154,10 +176,9 @@ int Tensor::size() const
 }
 
 /**
- * @brief
- *
- * @param i
- * @return
+ * @brief Length of one dimension.
+ * @param i which dimension (0-based).
+ * @return shape[i], the size of dimension i.
  */
 int Tensor::dim(int i) const
 {
@@ -182,6 +203,33 @@ float Tensor::at(const std::vector<int> &idx) const
     return this->data[flat];
 }
 
+// begin()/end() expose the buffer as an iterator range, so STL algorithms
+// (std::max_element, std::accumulate, ...) and range-for work on a Tensor.
+
+/** @brief Iterator to the first element (read/write). */
+float *Tensor::begin()
+{
+    return data;
+}
+
+/** @brief Iterator one past the last element (read/write). */
+float *Tensor::end()
+{
+    return data + count;
+}
+
+/** @brief Iterator to the first element (read only, for const Tensors). */
+const float *Tensor::begin() const
+{
+    return data;
+}
+
+/** @brief Iterator one past the last element (read only, for const Tensors). */
+const float *Tensor::end() const
+{
+    return data + count;
+}
+
 /**
  * @brief Access element by multi-dim index;
  *
@@ -200,6 +248,9 @@ float &Tensor::at(const std::vector<int> &idx)
     return this->data[flat];
 }
 
+/**
+ * @brief Print the tensor as a 2D grid (assumes exactly 2 dimensions).
+ */
 void Tensor::print() const
 {
     for (int i = 0; i < this->dim(0); i++)

@@ -18,12 +18,18 @@ public:
 
     Tensor &operator=(const Tensor &other);
     Tensor &operator=(Tensor &&other) noexcept;
+    float &operator[](int i);
+    float operator[](int i) const;
 
     int size() const;
     int dim(int i) const;
 
     float &at(const std::vector<int> &idx);
     float at(const std::vector<int> &idx) const;
+    float *begin();
+    float *end();
+    const float *begin() const;
+    const float *end() const;
 
     void print() const;
 };

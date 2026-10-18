@@ -1,11 +1,10 @@
 #include "gemm.h"
 
 /**
- * @brief
- *
- * @param A
- * @param B
- * @return
+ * @brief Matrix multiply: C = A * B (naive triple-loop GEMM).
+ * @param A left matrix, shape M x K.
+ * @param B right matrix, shape K x N (A's cols must equal B's rows).
+ * @return the product, shape M x N.
  */
 Tensor matmul(const Tensor &A, const Tensor &B)
 {
