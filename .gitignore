@@ -8,5 +8,14 @@ NOTES.md
 build/
 output/
 
+# downloaded MNIST dataset (regenerate via python/export.py)
+data/
+
+# editor config
+.vscode/
+
 # MacOS
 .DS_Store 
+
+# model
+model/

@@ -2,51 +2,28 @@
 #include "tensor.h"
 #include "gemm.h"
 #include "ops.h"
+#include "loader.h"
 
 int main(int argc, char const *argv[])
 {
-    // Tensor t({3, 2}, {1, 2, 3, 4, 5, 6});
-    // t.at({1, 2}) = 99;
-    // Tensor t2 = t;
-    // std::cout << t.at({1, 2}) << std::endl;
-    // std::cout << t2.at({1, 2}) << std::endl;
 
-    // Tensor A({5, 1}, {1, 2, 3, 2, 1});
-    // Tensor B({1, 5}, {1, 2, 3, 2, 1});
+    Tensor fc1_w = load_tensor("model/fc1_weight.bin", {784, 128});
+    Tensor fc1_b = load_tensor("model/fc1_bias.bin", {1, 128});
+    Tensor fc2_w = load_tensor("model/fc2_weight.bin", {128, 10});
+    Tensor fc2_b = load_tensor("model/fc2_bias.bin", {1, 10});
 
-    // Tensor C = matmul(A, B);
-    // C.print();
+    Tensor img = load_tensor("model/test_image.bin", {1, 784});
 
-    // std::cout << C.at({1, 2}) << std::endl;
+    Tensor h = linear(img, fc1_w, fc1_b);
+    h = relu(h);
+    Tensor out = linear(h, fc2_w, fc2_b);
+    Tensor probs = softmax(out);
 
-    // std::cout << "\n";
+    out.print();
 
-    // std::cout << "ReLU" << std::endl;
+    float *it = std::max_element(probs.begin(), probs.end());
+    int pred = it - probs.begin();
 
-    // Tensor x({2, 3}, {-1, 2, -3, 4, -5, 6});
-    // Tensor y = relu(x);
-    // y.print();
-
-    // std::cout << "\n";
-
-    // std::cout << "Linear" << "\n";
-
-    // Tensor x({1, 3}, {1, 2, 3});
-    // Tensor W({3, 2}, {1, 2, 3, 4, 5, 6});
-    // Tensor b({1, 2}, {10, 20});
-
-    // Tensor out = linear(x, W, b);
-    // out.print();
-
-    // std::cout << "Softmax\n";
-
-    // Tensor s = softmax(out);
-
-    // s.print();
-
-    Tensor s({1, 3}, {1, 2, 3});
-    Tensor p = softmax(s);
-    p.print();
-
+    std::cout << pred << std::endl;
     return 0;
 }
