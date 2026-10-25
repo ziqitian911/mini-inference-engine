@@ -6,7 +6,8 @@ enum class MatmulMode
     Naive,
     Reorder,
     Blocked,
-    Threaded
+    Threaded,
+    ThreadedPool
 };
 
 Tensor matmul(

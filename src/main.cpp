@@ -3,6 +3,7 @@
 #include "gemm.h"
 #include "ops.h"
 #include "loader.h"
+#include "threadpool.h"
 
 int main(int argc, char const *argv[])
 {
@@ -25,5 +26,15 @@ int main(int argc, char const *argv[])
     int pred = it - probs.begin();
 
     std::cout << pred << std::endl;
+
+    // ThreadPool pool(4);
+
+    // for (int i = 0; i < 8; i++)
+    // {
+    //     pool.enqueue(
+    //         [i]()
+    //         { std::cout << "task " << i << " running\n"; });
+    // }
+
     return 0;
 }

@@ -1,6 +1,9 @@
 #include "gemm.h"
+#include "threadpool.h"
 
 #include <algorithm>
+#include <thread>
+#include <latch>
 
 /**
  * @brief Matrix multiply: C = A * B (naive triple-loop GEMM).
@@ -24,6 +27,8 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
     switch (mode)
     {
     case MatmulMode::Naive:
+    {
+
         for (int i = 0; i < M; i++)
         {
             for (int j = 0; j < N; j++)
@@ -37,8 +42,10 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
             }
         }
         break;
+    }
 
     case MatmulMode::Reorder:
+    {
         // loop reorder
         for (int i = 0; i < M; i++)
         {
@@ -51,9 +58,10 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
             }
         }
         break;
+    }
 
     case MatmulMode::Blocked:
-
+    {
         for (int ii = 0; ii < M; ii += BS)
         {
             for (int jj = 0; jj < N; jj += BS)
@@ -75,6 +83,72 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
         }
 
         break;
+    }
+
+    case MatmulMode::Threaded:
+    {
+        unsigned int max_con = std::thread::hardware_concurrency();
+        std::vector<std::thread> threads;
+
+        for (unsigned int t = 0; t < max_con; t++)
+        {
+
+            int start = t * M / max_con;
+            int end = (t + 1) * M / max_con;
+            threads.emplace_back(
+                [=]()
+                {
+                    for (int i = start; i < end; i++)
+                    {
+                        for (int k = 0; k < K; k++)
+                        {
+                            for (int j = 0; j < N; j++)
+                            {
+                                c[i * N + j] += a[i * K + k] * b[k * N + j];
+                            }
+                        }
+                    }
+                });
+        }
+
+        for (auto &thread : threads)
+        {
+            thread.join();
+        }
+
+        break;
+    }
+
+    case MatmulMode::ThreadedPool:
+    {
+        static ThreadPool pool;
+        const unsigned int T = std::thread::hardware_concurrency();
+        std::latch done(T);
+
+        for (unsigned int t = 0; t < T; t++)
+        {
+            int start = t * M / T;
+            int end = (t + 1) * M / T;
+            pool.enqueue(
+                [=, &done]()
+                {
+                    for (int i = start; i < end; i++)
+                    {
+                        for (int k = 0; k < K; k++)
+                        {
+                            for (int j = 0; j < N; j++)
+                            {
+                                c[i * N + j] += a[i * K + k] * b[k * N + j];
+                            }
+                        }
+                    }
+                    done.count_down();
+                });
+        }
+
+        done.wait();
+        return C;
+    }
     }
 
     return C;
