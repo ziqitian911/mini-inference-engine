@@ -1,5 +1,6 @@
 #include "gemm.h"
 #include "threadpool.h"
+#include "gemm_cuda.h"
 
 #include <algorithm>
 #include <thread>
@@ -149,7 +150,11 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
         done.wait();
         return C;
     }
-    }
 
+    case MatmulMode::CUDA:
+    {
+        cuda_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
+    }
+    }
     return C;
 }

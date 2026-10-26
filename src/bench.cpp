@@ -94,6 +94,7 @@ int main()
         run("reorder", MatmulMode::Reorder, 0);
         run("threaded", MatmulMode::Threaded, 0);
         run("threadedpool", MatmulMode::ThreadedPool, 0);
+        run("cuda", MatmulMode::CUDA, 0);
         run("blocked-32", MatmulMode::Blocked, 32);
         run("blocked-64", MatmulMode::Blocked, 64);
         run("blocked-128", MatmulMode::Blocked, 128);
