@@ -154,6 +154,13 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
     case MatmulMode::CUDA:
     {
         cuda_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
+        break;
+    }
+
+    case MatmulMode::BlockedCUDA:
+    {
+        blocked_cuda_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
+        break;
     }
     }
     return C;
