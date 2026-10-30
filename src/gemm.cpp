@@ -1,10 +1,14 @@
 #include "gemm.h"
 #include "threadpool.h"
+
+#ifdef USE_CUDA
 #include "gemm_cuda.h"
+#endif
 
 #include <algorithm>
 #include <thread>
 #include <latch>
+#include <stdexcept>
 
 /**
  * @brief Matrix multiply: C = A * B (naive triple-loop GEMM).
@@ -151,6 +155,8 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
         return C;
     }
 
+#ifdef USE_CUDA
+
     case MatmulMode::CUDA:
     {
         cuda_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
@@ -168,6 +174,15 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
         cublas_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
         break;
     }
+
+#else
+
+    case MatmulMode::CUDA:
+    case MatmulMode::BlockedCUDA:
+    case MatmulMode::CUBLAS:
+        throw std::invalid_argument("CUDA backend not built: reconfigure with a CUDA compiler available");
+
+#endif
     }
     return C;
 }

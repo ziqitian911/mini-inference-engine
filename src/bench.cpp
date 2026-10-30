@@ -21,7 +21,10 @@
 
 #include "tensor.h"
 #include "gemm.h"
+
+#ifdef USE_CUDA
 #include "gemm_cuda.h"
+#endif
 
 // Run fn once as warm-up (not timed), then K times; return the minimum seconds.
 static double time_min(const std::function<void()> &fn, int K)
@@ -38,6 +41,7 @@ static double time_min(const std::function<void()> &fn, int K)
     return best;
 }
 
+#ifdef USE_CUDA
 static double kernel_min(const std::function<float()> &fn, int K)
 {
     fn();
@@ -50,6 +54,7 @@ static double kernel_min(const std::function<float()> &fn, int K)
 
     return best / 1000; // scale it to second
 }
+#endif
 
 // True if two tensors match element-wise within a small tolerance.
 static bool same(const Tensor &a, const Tensor &b)
@@ -75,8 +80,10 @@ int main()
         Tensor A({N, N}, vals), B({N, N}, vals);
 
         Tensor ref = matmul(A, B, MatmulMode::Naive); // reference answer for correctness
-        Tensor out({N, N}, vals);                     // scratch output for the kernel-only CUDA timings
-        double flops = 2.0 * N * N * N;               // FLOPs for an N*N*N matmul
+#ifdef USE_CUDA
+        Tensor out({N, N}, vals); // scratch output for the kernel-only CUDA timings
+#endif
+        double flops = 2.0 * N * N * N; // FLOPs for an N*N*N matmul
 
         auto run = [&](const std::string &name, MatmulMode mode, int BS)
         {
@@ -105,6 +112,7 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(300)); // cool down a bit
         };
 
+#ifdef USE_CUDA
         auto run_kernel = [&](const std::string &name, const std::function<float()> &fn)
         {
             std::fill(out.begin(), out.end(), 0.0f);
@@ -122,11 +130,13 @@ int main()
 
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
         };
+#endif
 
         run("naive", MatmulMode::Naive, 0);
         run("reorder", MatmulMode::Reorder, 0);
         run("threaded", MatmulMode::Threaded, 0);
         run("threadedpool", MatmulMode::ThreadedPool, 0);
+#ifdef USE_CUDA
         run("cuda", MatmulMode::CUDA, 0);
         run_kernel(
             "cuda-kernel",
@@ -144,6 +154,7 @@ int main()
             {
                 return cublas_matmul(A.begin(), B.begin(), out.begin(), N, N, N);
             });
+#endif
         run("blocked-32", MatmulMode::Blocked, 32);
         run("blocked-64", MatmulMode::Blocked, 64);
         run("blocked-128", MatmulMode::Blocked, 128);
