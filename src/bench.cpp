@@ -21,6 +21,7 @@
 
 #include "tensor.h"
 #include "gemm.h"
+#include "gemm_cuda.h"
 
 // Run fn once as warm-up (not timed), then K times; return the minimum seconds.
 static double time_min(const std::function<void()> &fn, int K)
@@ -35,6 +36,19 @@ static double time_min(const std::function<void()> &fn, int K)
         best = std::min(best, std::chrono::duration<double>(t1 - t0).count());
     }
     return best;
+}
+
+static double kernel_min(const std::function<float()> &fn, int K)
+{
+    fn();
+    double best = 1e30;
+    for (int r = 0; r < K; r++)
+    {
+        float result = fn();
+        best = std::min((double)result, best);
+    }
+
+    return best / 1000; // scale it to second
 }
 
 // True if two tensors match element-wise within a small tolerance.
@@ -61,6 +75,7 @@ int main()
         Tensor A({N, N}, vals), B({N, N}, vals);
 
         Tensor ref = matmul(A, B, MatmulMode::Naive); // reference answer for correctness
+        Tensor out({N, N}, vals);                     // scratch output for the kernel-only CUDA timings
         double flops = 2.0 * N * N * N;               // FLOPs for an N*N*N matmul
 
         auto run = [&](const std::string &name, MatmulMode mode, int BS)
@@ -81,7 +96,7 @@ int main()
             double gflops = flops / sec / 1e9;
             std::cout
                 << "N=" << N
-                << "  " << std::left << std::setw(12) << name << std::right
+                << "  " << std::left << std::setw(15) << name << std::right
                 << sec << " s   "
                 << std::setw(8) << gflops << " GFLOPS   "
                 << "correct=" << (ok ? "yes" : "NO!!")
@@ -90,12 +105,35 @@ int main()
             std::this_thread::sleep_for(std::chrono::milliseconds(300)); // cool down a bit
         };
 
+        auto run_kernel = [&](const std::string &name, const std::function<float()> &fn)
+        {
+            double sec = kernel_min(fn, K);
+            double gflops = flops / sec / 1e9;
+
+            std::cout
+                << "N=" << N
+                << "  " << std::left << std::setw(15) << name << std::right
+                << sec << " s   "
+                << std::setw(8) << gflops << " GFLOPS   "
+                << "\n";
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        };
+
         run("naive", MatmulMode::Naive, 0);
         run("reorder", MatmulMode::Reorder, 0);
         run("threaded", MatmulMode::Threaded, 0);
         run("threadedpool", MatmulMode::ThreadedPool, 0);
         run("cuda", MatmulMode::CUDA, 0);
+        run_kernel(
+            "cuda-kernel",
+            [&]
+            { return cuda_matmul(A.begin(), B.begin(), out.begin(), N, N, N); });
         run("blocked_cuda", MatmulMode::BlockedCUDA, 0);
+        run_kernel(
+            "blocked-kernel",
+            [&]
+            { return blocked_cuda_matmul(A.begin(), B.begin(), out.begin(), N, N, N); });
         run("blocked-32", MatmulMode::Blocked, 32);
         run("blocked-64", MatmulMode::Blocked, 64);
         run("blocked-128", MatmulMode::Blocked, 128);

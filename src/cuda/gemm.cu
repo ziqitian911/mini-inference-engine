@@ -49,10 +49,15 @@ __global__ void blocked_mtx_mul(float *a, float *b, float *c, const int M, const
     }
 }
 
-void cuda_matmul(const float *a, const float *b, float *c, const int M, const int N, const int K)
+float cuda_matmul(const float *a, const float *b, float *c, const int M, const int N, const int K)
 {
 
     float *d_a, *d_b, *d_c;
+    float ms = 0.0f;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     cudaMalloc(&d_a, M * K * sizeof(float));
     cudaMalloc(&d_b, N * K * sizeof(float));
@@ -64,20 +69,35 @@ void cuda_matmul(const float *a, const float *b, float *c, const int M, const in
     dim3 threads(16, 16);
     dim3 blocks((N + 15) / 16, (M + 15) / 16);
 
+    cudaEventRecord(start);
+
     mtx_mul<<<blocks, threads>>>(d_a, d_b, d_c, M, N, K);
 
-    cudaDeviceSynchronize();
+    cudaEventRecord(stop);
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&ms, start, stop);
 
     cudaMemcpy(c, d_c, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
+
+    return ms;
 }
 
-void blocked_cuda_matmul(const float *a, const float *b, float *c, const int M, const int N, const int K)
+float blocked_cuda_matmul(const float *a, const float *b, float *c, const int M, const int N, const int K)
 {
+
     float *d_a, *d_b, *d_c;
+    float ms = 0.0f;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
 
     cudaMalloc(&d_a, M * K * sizeof(float));
     cudaMalloc(&d_b, N * K * sizeof(float));
@@ -89,13 +109,24 @@ void blocked_cuda_matmul(const float *a, const float *b, float *c, const int M, 
     dim3 threads(TILE, TILE);
     dim3 blocks((N + TILE - 1) / TILE, (M + TILE - 1) / TILE);
 
+    cudaEventRecord(start);
+
     blocked_mtx_mul<<<blocks, threads>>>(d_a, d_b, d_c, M, N, K);
 
+    cudaEventRecord(stop);
+
     cudaDeviceSynchronize();
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&ms, start, stop);
 
     cudaMemcpy(c, d_c, M * N * sizeof(float), cudaMemcpyDeviceToHost);
 
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
     cudaFree(d_a);
     cudaFree(d_b);
     cudaFree(d_c);
+
+    return ms;
 }
