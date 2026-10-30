@@ -22,6 +22,10 @@
 #include "tensor.h"
 #include "gemm.h"
 
+#ifdef USE_CUDA
+#include "gemm_cuda.h"
+#endif
+
 // Run fn once as warm-up (not timed), then K times; return the minimum seconds.
 static double time_min(const std::function<void()> &fn, int K)
 {
@@ -36,6 +40,21 @@ static double time_min(const std::function<void()> &fn, int K)
     }
     return best;
 }
+
+#ifdef USE_CUDA
+static double kernel_min(const std::function<float()> &fn, int K)
+{
+    fn();
+    double best = 1e30;
+    for (int r = 0; r < K; r++)
+    {
+        float result = fn();
+        best = std::min((double)result, best);
+    }
+
+    return best / 1000; // scale it to second
+}
+#endif
 
 // True if two tensors match element-wise within a small tolerance.
 static bool same(const Tensor &a, const Tensor &b)
@@ -53,7 +72,7 @@ int main()
     const int K = 5;         // timed runs per config (take the min)
     volatile float sink = 0; // keep results "used" so the optimizer can't delete the work
 
-    std::cout << std::fixed << std::setprecision(4);
+    std::cout << std::fixed << std::setprecision(8);
 
     for (int N : {512, 1024, 2048})
     {
@@ -61,7 +80,10 @@ int main()
         Tensor A({N, N}, vals), B({N, N}, vals);
 
         Tensor ref = matmul(A, B, MatmulMode::Naive); // reference answer for correctness
-        double flops = 2.0 * N * N * N;               // FLOPs for an N*N*N matmul
+#ifdef USE_CUDA
+        Tensor out({N, N}, vals); // scratch output for the kernel-only CUDA timings
+#endif
+        double flops = 2.0 * N * N * N; // FLOPs for an N*N*N matmul
 
         auto run = [&](const std::string &name, MatmulMode mode, int BS)
         {
@@ -81,19 +103,58 @@ int main()
             double gflops = flops / sec / 1e9;
             std::cout
                 << "N=" << N
-                << "  " << std::left << std::setw(12) << name << std::right
-                << sec << " s   "
-                << std::setw(8) << gflops << " GFLOPS   "
+                << "  " << std::left << std::setw(15) << name << std::right
+                << sec << " s    "
+                << std::setw(10) << gflops << " GFLOPS   "
                 << "correct=" << (ok ? "yes" : "NO!!")
                 << "\n";
 
             std::this_thread::sleep_for(std::chrono::milliseconds(300)); // cool down a bit
         };
 
+#ifdef USE_CUDA
+        auto run_kernel = [&](const std::string &name, const std::function<float()> &fn)
+        {
+            std::fill(out.begin(), out.end(), 0.0f);
+            double sec = kernel_min(fn, K);
+            bool ok = same(out, ref);
+            double gflops = flops / sec / 1e9;
+
+            std::cout
+                << "N=" << N
+                << "  " << std::left << std::setw(15) << name << std::right
+                << sec << " s    "
+                << std::setw(10) << gflops << " GFLOPS   "
+                << "correct=" << (ok ? "yes" : "NO!!")
+                << "\n";
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(300));
+        };
+#endif
+
         run("naive", MatmulMode::Naive, 0);
         run("reorder", MatmulMode::Reorder, 0);
         run("threaded", MatmulMode::Threaded, 0);
         run("threadedpool", MatmulMode::ThreadedPool, 0);
+#ifdef USE_CUDA
+        run("cuda", MatmulMode::CUDA, 0);
+        run_kernel(
+            "cuda-kernel",
+            [&]
+            { return cuda_matmul(A.begin(), B.begin(), out.begin(), N, N, N); });
+        run("blocked_cuda", MatmulMode::BlockedCUDA, 0);
+        run_kernel(
+            "blocked-kernel",
+            [&]
+            { return blocked_cuda_matmul(A.begin(), B.begin(), out.begin(), N, N, N); });
+        run("cublas", MatmulMode::CUBLAS, 0);
+        run_kernel(
+            "cublas-kernel",
+            [&]
+            {
+                return cublas_matmul(A.begin(), B.begin(), out.begin(), N, N, N);
+            });
+#endif
         run("blocked-32", MatmulMode::Blocked, 32);
         run("blocked-64", MatmulMode::Blocked, 64);
         run("blocked-128", MatmulMode::Blocked, 128);
