@@ -9,7 +9,8 @@ enum class MatmulMode
     Threaded,
     ThreadedPool,
     CUDA,
-    BlockedCUDA
+    BlockedCUDA,
+    CUBLAS
 };
 
 Tensor matmul(

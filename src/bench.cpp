@@ -67,7 +67,7 @@ int main()
     const int K = 5;         // timed runs per config (take the min)
     volatile float sink = 0; // keep results "used" so the optimizer can't delete the work
 
-    std::cout << std::fixed << std::setprecision(4);
+    std::cout << std::fixed << std::setprecision(8);
 
     for (int N : {512, 1024, 2048})
     {
@@ -97,8 +97,8 @@ int main()
             std::cout
                 << "N=" << N
                 << "  " << std::left << std::setw(15) << name << std::right
-                << sec << " s   "
-                << std::setw(8) << gflops << " GFLOPS   "
+                << sec << " s    "
+                << std::setw(10) << gflops << " GFLOPS   "
                 << "correct=" << (ok ? "yes" : "NO!!")
                 << "\n";
 
@@ -107,14 +107,17 @@ int main()
 
         auto run_kernel = [&](const std::string &name, const std::function<float()> &fn)
         {
+            std::fill(out.begin(), out.end(), 0.0f);
             double sec = kernel_min(fn, K);
+            bool ok = same(out, ref);
             double gflops = flops / sec / 1e9;
 
             std::cout
                 << "N=" << N
                 << "  " << std::left << std::setw(15) << name << std::right
-                << sec << " s   "
-                << std::setw(8) << gflops << " GFLOPS   "
+                << sec << " s    "
+                << std::setw(10) << gflops << " GFLOPS   "
+                << "correct=" << (ok ? "yes" : "NO!!")
                 << "\n";
 
             std::this_thread::sleep_for(std::chrono::milliseconds(300));
@@ -134,6 +137,13 @@ int main()
             "blocked-kernel",
             [&]
             { return blocked_cuda_matmul(A.begin(), B.begin(), out.begin(), N, N, N); });
+        run("cublas", MatmulMode::CUBLAS, 0);
+        run_kernel(
+            "cublas-kernel",
+            [&]
+            {
+                return cublas_matmul(A.begin(), B.begin(), out.begin(), N, N, N);
+            });
         run("blocked-32", MatmulMode::Blocked, 32);
         run("blocked-64", MatmulMode::Blocked, 64);
         run("blocked-128", MatmulMode::Blocked, 128);

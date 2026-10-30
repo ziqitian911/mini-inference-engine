@@ -1,6 +1,11 @@
 #include "gemm_cuda.h"
 
+#include <cublas_v2.h>
+#include <memory>
+
 constexpr int TILE = 16;
+
+static cublasHandle_t get_cublas_handle();
 
 __global__ void mtx_mul(float *a, float *b, float *c, const int M, const int N, const int K)
 {
@@ -129,4 +134,73 @@ float blocked_cuda_matmul(const float *a, const float *b, float *c, const int M,
     cudaFree(d_c);
 
     return ms;
+}
+
+float cublas_matmul(const float *a, const float *b, float *c, const int M, const int N, const int K)
+{
+
+    float *d_a, *d_b, *d_c;
+    float ms = 0.0f;
+
+    cudaEvent_t start, stop;
+    cudaEventCreate(&start);
+    cudaEventCreate(&stop);
+
+    cudaMalloc(&d_a, M * K * sizeof(float));
+    cudaMalloc(&d_b, N * K * sizeof(float));
+    cudaMalloc(&d_c, M * N * sizeof(float));
+
+    cudaMemcpy(d_a, a, M * K * sizeof(float), cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, N * K * sizeof(float), cudaMemcpyHostToDevice);
+
+    const float alpha = 1.0f, beta = 0.0f;
+
+    cudaEventRecord(start);
+
+    cublasSgemm(
+        get_cublas_handle(),
+        CUBLAS_OP_N,
+        CUBLAS_OP_N,
+        N,
+        M,
+        K,
+        &alpha,
+        d_b,
+        N,
+        d_a,
+        K,
+        &beta,
+        d_c,
+        N);
+
+    cudaEventRecord(stop);
+
+    cudaDeviceSynchronize();
+    cudaEventSynchronize(stop);
+
+    cudaEventElapsedTime(&ms, start, stop);
+
+    cudaMemcpy(c, d_c, M * N * sizeof(float), cudaMemcpyDeviceToHost);
+
+    cudaEventDestroy(start);
+    cudaEventDestroy(stop);
+    cudaFree(d_a);
+    cudaFree(d_b);
+    cudaFree(d_c);
+
+    return ms;
+}
+
+cublasHandle_t get_cublas_handle()
+{
+    static std::unique_ptr<cublasContext, decltype(&cublasDestroy)> p(
+        []()
+        {
+            cublasHandle_t handle;
+            cublasCreate(&handle);
+            return handle;
+        }(),
+        &cublasDestroy);
+
+    return p.get();
 }

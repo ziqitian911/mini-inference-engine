@@ -32,3 +32,7 @@ add_executable(bench
 
 target_include_directories(main PRIVATE include)
 target_include_directories(bench PRIVATE include)
+
+find_package(CUDAToolkit REQUIRED)
+target_link_libraries(main PRIVATE CUDA::cublas)
+target_link_libraries(bench PRIVATE CUDA::cublas)

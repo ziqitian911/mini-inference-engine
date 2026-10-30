@@ -23,3 +23,7 @@ model/
 #nsys
 report1.nsys-rep
 report1.sqlite
+
+
+# scratch
+scratch/

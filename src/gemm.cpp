@@ -162,6 +162,12 @@ Tensor matmul(const Tensor &A, const Tensor &B, MatmulMode mode, int BS)
         blocked_cuda_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
         break;
     }
+
+    case MatmulMode::CUBLAS:
+    {
+        cublas_matmul(A.begin(), B.begin(), C.begin(), M, N, K);
+        break;
+    }
     }
     return C;
 }
